@@ -140,7 +140,7 @@ class AudioEngine @Inject constructor(
 
     fun isRunning() = job?.isActive == true
 
-    private fun isHeadsetConnected(): Boolean {
+    fun isHeadsetConnected(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         for (device in devices) {

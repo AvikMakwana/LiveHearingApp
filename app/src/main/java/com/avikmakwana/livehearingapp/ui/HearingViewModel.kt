@@ -24,20 +24,28 @@ class HearingViewModel @Inject constructor(
     private val _amplitude = MutableStateFlow(0)
     val amplitude = _amplitude.asStateFlow()
 
-    // New: Balance State (-1.0 to 1.0)
+    private val _uiError = MutableStateFlow<String?>(null)
+    val uiError = _uiError.asStateFlow()
     private val _balance = MutableStateFlow(0f)
     val balance = _balance.asStateFlow()
 
     init {
         _isListening.value = audioEngine.isRunning()
-        _balance.value = audioEngine.currentBalance // Sync if service running
+        _balance.value = audioEngine.currentBalance
 
-        audioEngine.currentAmplitude = { amp -> _amplitude.value = amp }
-
-        // Listen to error callbacks if needed (omitted for brevity)
+        audioEngine.currentAmplitude = { _amplitude.value = it }
+        audioEngine.onError = { error ->
+            _isListening.value = false
+            _uiError.value = error
+        }
     }
 
     fun toggleListening() {
+        _uiError.value = null
+        if (!_isListening.value && !audioEngine.isHeadsetConnected()) {
+            _uiError.value = "No Device Connected.\nConnect headphones to start."
+            return
+        }
         val intent = Intent(app, AudioForegroundService::class.java)
         if (_isListening.value) {
             intent.action = AudioForegroundService.ACTION_STOP
@@ -52,5 +60,9 @@ class HearingViewModel @Inject constructor(
     fun updateBalance(newBalance: Float) {
         _balance.value = newBalance
         audioEngine.currentBalance = newBalance
+    }
+
+    fun clearError() {
+        _uiError.value = null
     }
 }

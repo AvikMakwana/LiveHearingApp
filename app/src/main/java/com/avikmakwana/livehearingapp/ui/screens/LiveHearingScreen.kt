@@ -25,16 +25,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.PowerSettingsNew
-import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -45,24 +46,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.avikmakwana.livehearingapp.R
 import com.avikmakwana.livehearingapp.ui.HearingViewModel
 
 // BRAND COLORS
 val WeHearBlack = Color(0xFF0F1115)
 val WeHearDarkGrey = Color(0xFF1E2129)
-val WeHearBlue = Color(0xFF00E5FF)
+val WeHearBlue = Color(0xFFE83483)
 val WeHearPurple = Color(0xFF651FFF)
+val WeHearRed = Color(0xFFFF5252)
 val WeHearGradient = Brush.linearGradient(
     colors = listOf(WeHearBlue, WeHearPurple),
     start = Offset(0f, 0f),
@@ -77,58 +82,79 @@ fun LiveHearingScreen(
     val isListening by viewModel.isListening.collectAsState()
     val amplitude by viewModel.amplitude.collectAsState()
     val balance by viewModel.balance.collectAsState()
-    val context = LocalContext.current
+    val uiError by viewModel.uiError.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { }
 
     Scaffold(
-        containerColor = WeHearBlack
+        containerColor = WeHearBlack,
+        bottomBar = {
+            // "Powered By" Footer
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp, top = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "from",
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Replace this Icon with your actual Logo Drawable
+                        // Icon(painter = painterResource(id = R.drawable.wehear_logo), ...)
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_wehear_smal),
+                            contentDescription = "Logo",
+                            tint = WeHearBlue,
+                            modifier = Modifier.size(25.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "WeHear",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            letterSpacing = 1.sp
+                        )
+                    }
+//                    Text(
+//                        text = "Developed by Avik Makwana",
+//                        color = WeHearBlue.copy(alpha = 0.5f),
+//                        fontSize = 9.sp,
+//                        modifier = Modifier.padding(top = 2.dp)
+//                    )
+                }
+            }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // --- 1. Top Bar ---
-            Row(
+            // --- 1. Clean Top Bar (No Settings) ---
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp, start = 24.dp, end = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(top = 40.dp, start = 24.dp, end = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column {
-                    Text(
-                        text = "WeHear",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Smart Hearing Ecosystem",
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        letterSpacing = 2.sp
-                    )
-                }
-                IconButton(
-                    onClick = { /* TODO: Settings */ },
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(WeHearDarkGrey)
-                ) {
-                    Icon(
-                        Icons.Rounded.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White
-                    )
-                }
+                Text(
+                    text = "Live Hearing Mode",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp
+                )
             }
 
-            // --- 2. Central Visualization ---
+            // --- 2. Central Interactive Area ---
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -144,124 +170,176 @@ fun LiveHearingScreen(
                 // Main Toggle Button
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(150.dp)
                         .clip(CircleShape)
                         .background(if (isListening) WeHearGradient else SolidColor(WeHearDarkGrey))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
+                            if (uiError != null) viewModel.clearError() // Click to clear error
+
                             val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
                             if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
                             permissionLauncher.launch(perms.toTypedArray())
+
                             viewModel.toggleListening()
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Rounded.Hearing else Icons.Rounded.PowerSettingsNew,
-                        contentDescription = "Toggle",
-                        tint = Color.White,
-                        modifier = Modifier.size(64.dp)
-                    )
+                    if (uiError != null) {
+                        // Error Icon
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = "Error",
+                            tint = WeHearRed,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    } else {
+                        // Standard Icon
+                        Icon(
+                            imageVector = if (isListening) Icons.Rounded.Hearing else Icons.Rounded.PowerSettingsNew,
+                            contentDescription = "Toggle",
+                            tint = Color.White,
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
                 }
             }
 
-            // Status Text
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                AnimatedContent(targetState = isListening, label = "Status") { listening ->
-                    Text(
-                        text = if (listening) "ACTIVE LISTENING" else "TAP TO ACTIVATE",
-                        color = if (listening) WeHearBlue else Color.DarkGray,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // --- 3. Balance Control (Replacing EQ) ---
+            // --- 3. Status & Instructions ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .background(WeHearDarkGrey, RoundedCornerShape(24.dp))
-                    .padding(24.dp)
+                    .padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "AUDIO BALANCE",
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Icon(
-                        Icons.Rounded.GraphicEq,
-                        contentDescription = null,
-                        tint = WeHearBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
+                AnimatedContent(
+                    targetState = uiError ?: (if (isListening) "Active" else "Idle"),
+                    label = "Status"
+                ) { state ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            // CASE: ERROR
+                            uiError != null -> {
+                                Text(
+                                    text = uiError ?: "",
+                                    color = WeHearRed,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Tap button to retry",
+                                    color = Color.Gray,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            // CASE: LISTENING
+                            state == "Active" -> {
+                                Text(
+                                    text = "LIVE HEARING ACTIVE",
+                                    color = WeHearBlue,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Tap to stop",
+                                    color = Color.Gray,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.alpha(0.7f)
+                                )
+                            }
+                            // CASE: IDLE
+                            else -> {
+                                Text(
+                                    text = "TAP TO ACTIVATE",
+                                    color = Color.DarkGray,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                        }
+                    }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "L",
-                        color = if (balance < 0) Color.White else Color.Gray,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Slider(
-                        value = balance,
-                        onValueChange = { viewModel.updateBalance(it) },
-                        valueRange = -1f..1f,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.White,
-                            activeTrackColor = WeHearBlue,
-                            inactiveTrackColor = Color.Black
-                        )
-                    )
-
-                    Text(
-                        "R",
-                        color = if (balance > 0) Color.White else Color.Gray,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Helper Text
-                Text(
-                    text = when {
-                        balance < -0.2f -> "Focus Left"
-                        balance > 0.2f -> "Focus Right"
-                        else -> "Balanced"
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    color = WeHearBlue,
-                    fontSize = 12.sp
-                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            // --- 4. Balance Control Card ---
+            // Only show this when NOT in error state, for cleaner look
+            if (uiError == null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .background(WeHearDarkGrey, RoundedCornerShape(24.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "AUDIO BALANCE",
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            Icons.Rounded.GraphicEq,
+                            contentDescription = null,
+                            tint = WeHearBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "L",
+                            color = if (balance < 0) Color.White else Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Slider(
+                            value = balance,
+                            onValueChange = { viewModel.updateBalance(it) },
+                            valueRange = -1f..1f,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = WeHearBlue,
+                                inactiveTrackColor = Color.Black.copy(alpha = 0.5f)
+                            )
+                        )
+
+                        Text(
+                            "R",
+                            color = if (balance > 0) Color.White else Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(100.dp)) // Maintain layout height if error is shown
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+// ... (WeHearRipple function remains exactly the same as before) ...
 @Composable
 fun WeHearRipple(amplitude: Int, delay: Int) {
     val infiniteTransition = rememberInfiniteTransition(label = "ripple")
