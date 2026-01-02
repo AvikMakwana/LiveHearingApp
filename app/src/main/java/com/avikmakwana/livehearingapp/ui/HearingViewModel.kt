@@ -3,11 +3,13 @@ package com.avikmakwana.livehearingapp.ui
 import android.app.Application
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope // Import this
 import com.avikmakwana.livehearingapp.domain.AudioEngine
 import com.avikmakwana.livehearingapp.service.AudioForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -22,16 +24,17 @@ class HearingViewModel @Inject constructor(
     private val _amplitude = MutableStateFlow(0)
     val amplitude = _amplitude.asStateFlow()
 
+    // New: Balance State (-1.0 to 1.0)
+    private val _balance = MutableStateFlow(0f)
+    val balance = _balance.asStateFlow()
+
     init {
-        // Sync initial state if service is already running
         _isListening.value = audioEngine.isRunning()
+        _balance.value = audioEngine.currentBalance // Sync if service running
 
-        // Setup visualizer callback
-        audioEngine.currentAmplitude = { amp ->
-            _amplitude.value = amp
-        }
+        audioEngine.currentAmplitude = { amp -> _amplitude.value = amp }
 
-
+        // Listen to error callbacks if needed (omitted for brevity)
     }
 
     fun toggleListening() {
@@ -44,5 +47,10 @@ class HearingViewModel @Inject constructor(
             _isListening.value = true
         }
         app.startService(intent)
+    }
+
+    fun updateBalance(newBalance: Float) {
+        _balance.value = newBalance
+        audioEngine.currentBalance = newBalance
     }
 }

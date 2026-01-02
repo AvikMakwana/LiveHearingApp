@@ -1,6 +1,7 @@
 package com.avikmakwana.livehearingapp.ui.screens
 
 import android.Manifest
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -13,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,17 +28,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,89 +69,91 @@ val WeHearGradient = Brush.linearGradient(
     end = Offset(500f, 500f)
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveHearingScreen(
     viewModel: HearingViewModel = hiltViewModel()
 ) {
     val isListening by viewModel.isListening.collectAsState()
     val amplitude by viewModel.amplitude.collectAsState()
+    val balance by viewModel.balance.collectAsState()
     val context = LocalContext.current
-
-    // Error Handling from ViewModel/Engine (Requires exposing error flow in VM,
-    // for now we handle via simple Toast logic if Engine throws)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WeHearBlack)
-    ) {
-        // --- 1. Top Bar ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 48.dp, start = 24.dp, end = 24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "WeHear",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = "Smart Hearing Ecosystem",
-                    color = Color.Gray,
-                    fontSize = 12.sp,
-                    letterSpacing = 2.sp
-                )
-            }
-            IconButton(
-                onClick = { /* TODO: Settings */ },
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(WeHearDarkGrey)
-            ) {
-                Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = Color.White)
-            }
-        }
-
-        // --- 2. Central Visualization ---
+    Scaffold(
+        containerColor = WeHearBlack
+    ) { padding ->
         Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
-            // The "Soul" of the UI: The Dynamic Visualizer
+            // --- 1. Top Bar ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, start = 24.dp, end = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "WeHear",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "Smart Hearing Ecosystem",
+                        color = Color.Gray,
+                        fontSize = 12.sp,
+                        letterSpacing = 2.sp
+                    )
+                }
+                IconButton(
+                    onClick = { /* TODO: Settings */ },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(WeHearDarkGrey)
+                ) {
+                    Icon(
+                        Icons.Rounded.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            // --- 2. Central Visualization ---
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(320.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
             ) {
+                // Background Pulse
                 if (isListening) {
-                    // Layered Ripples
                     WeHearRipple(amplitude = amplitude, delay = 0)
                     WeHearRipple(amplitude = amplitude, delay = 300)
-                    WeHearRipple(amplitude = amplitude, delay = 600)
                 }
 
-                // The Main Button Container
+                // Main Toggle Button
                 Box(
                     modifier = Modifier
                         .size(140.dp)
                         .clip(CircleShape)
-                        .background(
-                            brush = if (isListening) WeHearGradient else SolidColor(WeHearDarkGrey)
-                        )
-                        .clickable {
+                        .background(if (isListening) WeHearGradient else SolidColor(WeHearDarkGrey))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
                             val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-                            if (android.os.Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+                            if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
                             permissionLauncher.launch(perms.toTypedArray())
-
                             viewModel.toggleListening()
                         },
                     contentAlignment = Alignment.Center
@@ -159,113 +167,125 @@ fun LiveHearingScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
-
-            // Status Text with Animation
-            AnimatedContent(targetState = isListening, label = "Status") { listening ->
-                if (listening) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "ACTIVE LISTENING",
-                            color = WeHearBlue,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            text = "Analyzing Environment...",
-                            color = Color.Gray,
-                            fontSize = 12.sp
-                        )
-                    }
-                } else {
+            // Status Text
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AnimatedContent(targetState = isListening, label = "Status") { listening ->
                     Text(
-                        text = "TAP TO ACTIVATE",
-                        color = Color.DarkGray,
+                        text = if (listening) "ACTIVE LISTENING" else "TAP TO ACTIVATE",
+                        color = if (listening) WeHearBlue else Color.DarkGray,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp
                     )
                 }
             }
-        }
 
-        // --- 3. Bottom Control Deck ---
-        // Mimicking "Pro" audio controls
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 48.dp, start = 24.dp, end = 24.dp)
-                .fillMaxWidth()
-                .height(80.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(WeHearDarkGrey.copy(alpha = 0.8f)),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            ControlItem(icon = Icons.Rounded.Tune, label = "EQ")
-            VerticalDivider(
-                modifier = Modifier.height(30.dp),
-                color = Color.Gray.copy(alpha = 0.3f)
-            )
-            ControlItem(icon = Icons.Rounded.Hearing, label = "Focus", isActive = true)
-            VerticalDivider(
-                modifier = Modifier.height(30.dp),
-                color = Color.Gray.copy(alpha = 0.3f)
-            )
-            ControlItem(icon = Icons.Rounded.Settings, label = "Mode")
-        }
-    }
-}
+            Spacer(modifier = Modifier.height(32.dp))
 
-@Composable
-fun ControlItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isActive: Boolean = false
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (isActive) WeHearBlue else Color.Gray
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = label, color = if (isActive) Color.White else Color.Gray, fontSize = 10.sp)
+            // --- 3. Balance Control (Replacing EQ) ---
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .background(WeHearDarkGrey, RoundedCornerShape(24.dp))
+                    .padding(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "AUDIO BALANCE",
+                        color = Color.Gray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        Icons.Rounded.GraphicEq,
+                        contentDescription = null,
+                        tint = WeHearBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "L",
+                        color = if (balance < 0) Color.White else Color.Gray,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Slider(
+                        value = balance,
+                        onValueChange = { viewModel.updateBalance(it) },
+                        valueRange = -1f..1f,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White,
+                            activeTrackColor = WeHearBlue,
+                            inactiveTrackColor = Color.Black
+                        )
+                    )
+
+                    Text(
+                        "R",
+                        color = if (balance > 0) Color.White else Color.Gray,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Helper Text
+                Text(
+                    text = when {
+                        balance < -0.2f -> "Focus Left"
+                        balance > 0.2f -> "Focus Right"
+                        else -> "Balanced"
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    color = WeHearBlue,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 }
 
 @Composable
 fun WeHearRipple(amplitude: Int, delay: Int) {
     val infiniteTransition = rememberInfiniteTransition(label = "ripple")
-
-    // Animate scale based on amplitude + infinite pulse
     val pulse by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.4f,
+        initialValue = 1.0f, targetValue = 1.4f,
         animationSpec = infiniteRepeatable(
             animation = tween(1500, delayMillis = delay, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ), label = "pulse"
     )
-
-    // Dynamic scale reacts to real audio amplitude
     val audioScale = 1f + (amplitude / 200f)
 
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val radius = (size.minDimension / 2) * 0.5f // Base radius matches button
-
+        val radius = (size.minDimension / 2) * 0.5f
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(WeHearBlue.copy(alpha = 0.3f), Color.Transparent),
-                center = center,
-                radius = radius * pulse * audioScale * 1.5f
+                center = center, radius = radius * pulse * audioScale * 1.5f
             ),
             radius = radius * pulse * audioScale,
             center = center
         )
-
-        // Add a thin stroke for a "Tech" look
         drawCircle(
-            color = WeHearBlue.copy(alpha = 0.1f * (1.5f - pulse)), // Fade out as it expands
+            color = WeHearBlue.copy(alpha = 0.1f * (1.5f - pulse)),
             radius = radius * pulse * audioScale,
             center = center,
             style = Stroke(width = 2.dp.toPx())

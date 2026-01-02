@@ -18,12 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 @Singleton
 class AudioEngine @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    // ... (Previous variables remain the same) ...
     private var audioRecord: AudioRecord? = null
     private var audioTrack: AudioTrack? = null
     private var job: Job? = null
@@ -31,30 +31,36 @@ class AudioEngine @Inject constructor(
     // Config
     private val sampleRate = 44100
     private val channelConfigIn = AudioFormat.CHANNEL_IN_MONO
-    private val channelConfigOut = AudioFormat.CHANNEL_OUT_MONO
+    // CHANGED: Output must be STEREO to control Left/Right independently
+    private val channelConfigOut = AudioFormat.CHANNEL_OUT_STEREO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+
+    // Buffers
     private val minBufSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
 
+    // Callbacks
     var currentAmplitude: ((Int) -> Unit)? = null
-
-    // NEW: Error callback for UI to show "Connect Headphones" toast
     var onError: ((String) -> Unit)? = null
+
+    // State: -1.0 (Left) to 1.0 (Right). 0.0 is Center.
+    @Volatile
+    var currentBalance: Float = 0f
 
     @SuppressLint("MissingPermission")
     fun startAudioLoop() {
         if (job?.isActive == true) return
 
-        // SAFETY CHECK: Headphones Only!
         if (!isHeadsetConnected()) {
-            onError?.invoke("Please connect WeHear device or headphones to avoid feedback noise.")
+            onError?.invoke("Please connect WeHear device or headphones.")
             return
         }
 
         job = CoroutineScope(Dispatchers.IO).launch {
             try {
-                // ... (Setup AudioRecord & AudioTrack same as before) ...
+                // 1. Setup Input (Mono Mic)
                 audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfigIn, audioFormat, minBufSize * 2)
 
+                // 2. Setup Output (Stereo Playback)
                 audioTrack = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
@@ -66,26 +72,44 @@ class AudioEngine @Inject constructor(
                         AudioFormat.Builder()
                             .setEncoding(audioFormat)
                             .setSampleRate(sampleRate)
-                            .setChannelMask(channelConfigOut)
+                            .setChannelMask(channelConfigOut) // STEREO
                             .build()
                     )
-                    .setBufferSizeInBytes(minBufSize * 2)
+                    .setBufferSizeInBytes(minBufSize * 4) // Larger buffer for stereo
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
 
                 audioRecord?.startRecording()
                 audioTrack?.play()
 
-                val buffer = ShortArray(minBufSize)
+                val monoBuffer = ShortArray(minBufSize)
+                // Stereo buffer is 2x size (L + R for each sample)
+                val stereoBuffer = ShortArray(minBufSize * 2)
 
                 while (isActive) {
-                    val readSize = audioRecord?.read(buffer, 0, minBufSize) ?: 0
-                    if (readSize > 0) {
-                        audioTrack?.write(buffer, 0, readSize)
+                    val readSize = audioRecord?.read(monoBuffer, 0, minBufSize) ?: 0
 
-                        // Amplitude calculation
-                        val maxAmplitude = buffer.take(readSize).maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0
-                        // Smoothed normalization for better UI ripple
+                    if (readSize > 0) {
+                        // DSP: Software Panning
+                        val balance = currentBalance // Capture volatile read
+
+                        // Calculate Gains (Linear Panning)
+                        // If balance is -1 (Left), R=0. If balance is 1 (Right), L=0.
+                        val leftGain = if (balance > 0) 1f - balance else 1f
+                        val rightGain = if (balance < 0) 1f + balance else 1f
+
+                        // Interleave Mono -> Stereo
+                        for (i in 0 until readSize) {
+                            val signal = monoBuffer[i]
+                            stereoBuffer[i * 2] = (signal * leftGain).toInt().toShort()     // LEFT
+                            stereoBuffer[i * 2 + 1] = (signal * rightGain).toInt().toShort() // RIGHT
+                        }
+
+                        // Write Stereo Buffer
+                        audioTrack?.write(stereoBuffer, 0, readSize * 2)
+
+                        // Visualization (use max amplitude of raw input)
+                        val maxAmplitude = monoBuffer.take(readSize).maxOfOrNull { abs(it.toInt()) } ?: 0
                         val normalized = (maxAmplitude / 100).coerceIn(0, 100)
 
                         withContext(Dispatchers.Main) {
@@ -95,7 +119,7 @@ class AudioEngine @Inject constructor(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                withContext(Dispatchers.Main) { onError?.invoke("Audio Error: ${e.message}") }
+                withContext(Dispatchers.Main) { onError?.invoke("Engine Error: ${e.message}") }
             } finally {
                 stopAudioLoop()
             }
@@ -103,7 +127,6 @@ class AudioEngine @Inject constructor(
     }
 
     fun stopAudioLoop() {
-        // ... (Cleanup code same as before) ...
         job?.cancel()
         job = null
         try {
@@ -117,7 +140,6 @@ class AudioEngine @Inject constructor(
 
     fun isRunning() = job?.isActive == true
 
-    // HELPER: Detects wired or bluetooth headsets
     private fun isHeadsetConnected(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -127,9 +149,7 @@ class AudioEngine @Inject constructor(
                 type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
                 type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                 type == AudioDeviceInfo.TYPE_USB_HEADSET
-            ) {
-                return true
-            }
+            ) return true
         }
         return false
     }
