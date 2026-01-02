@@ -1,6 +1,5 @@
 package com.avikmakwana.livehearingapp.service
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -39,7 +38,9 @@ class AudioForegroundService : Service() {
     }
 
     private fun startService() {
-        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createNotificationChannel()
+        }
 
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -47,8 +48,8 @@ class AudioForegroundService : Service() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Live Hearing Active")
-            .setContentText("Listening to surroundings...")
+            .setContentTitle("WeHear")
+            .setContentText("Hearing Mode is on")
             .setSmallIcon(R.drawable.ic_launcher_foreground) // Use your icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -66,9 +67,10 @@ class AudioForegroundService : Service() {
         stopSelf()
     }
 
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
+        val channel = android.app.NotificationChannel(
             CHANNEL_ID,
             "Live Hearing Service",
             NotificationManager.IMPORTANCE_LOW

@@ -1,16 +1,23 @@
 package com.avikmakwana.livehearingapp.ui.screens
 
 import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +25,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,11 +37,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -53,11 +64,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avikmakwana.livehearingapp.R
 import com.avikmakwana.livehearingapp.ui.HearingViewModel
@@ -83,10 +96,45 @@ fun LiveHearingScreen(
     val amplitude by viewModel.amplitude.collectAsState()
     val balance by viewModel.balance.collectAsState()
     val uiError by viewModel.uiError.collectAsState()
+    val context = LocalContext.current
 
+    // 1. Back Handler: Intercept back press to clear error state
+    BackHandler(enabled = uiError != null) {
+        viewModel.clearError()
+    }
+
+    // 2. Permission Launcher: FIXED LOGIC
+    // We only start listening inside this callback AFTER permission is granted
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { }
+    ) { perms ->
+        val audioGranted = perms[Manifest.permission.RECORD_AUDIO] == true
+        if (audioGranted) {
+            viewModel.toggleListening()
+        } else {
+            // Optional: Handle denial (e.g., show a snackbar saying permission is needed)
+        }
+    }
+
+    // 3. Helper function to check and start
+    val onStartListening = {
+        if (uiError != null) viewModel.clearError()
+
+        val hasAudio = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasAudio) {
+            // Permission already granted? Go ahead.
+            viewModel.toggleListening()
+        } else {
+            // Permission missing? Ask first. DO NOT toggle yet.
+            val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissionLauncher.launch(perms.toTypedArray())
+        }
+    }
 
     Scaffold(
         containerColor = WeHearBlack,
@@ -106,8 +154,6 @@ fun LiveHearingScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Replace this Icon with your actual Logo Drawable
-                        // Icon(painter = painterResource(id = R.drawable.wehear_logo), ...)
                         Icon(
                             painter = painterResource(id = R.drawable.ic_wehear_smal),
                             contentDescription = "Logo",
@@ -123,12 +169,12 @@ fun LiveHearingScreen(
                             letterSpacing = 1.sp
                         )
                     }
-//                    Text(
-//                        text = "Developed by Avik Makwana",
-//                        color = WeHearBlue.copy(alpha = 0.5f),
-//                        fontSize = 9.sp,
-//                        modifier = Modifier.padding(top = 2.dp)
-//                    )
+                    Text(
+                        text = "Developed by Avik Makwana",
+                        color = WeHearBlue.copy(alpha = 0.5f),
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }
@@ -138,7 +184,7 @@ fun LiveHearingScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // --- 1. Clean Top Bar (No Settings) ---
+            // --- 1. Top Bar ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -177,13 +223,7 @@ fun LiveHearingScreen(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
-                            if (uiError != null) viewModel.clearError() // Click to clear error
-
-                            val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-                            if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                            permissionLauncher.launch(perms.toTypedArray())
-
-                            viewModel.toggleListening()
+                            onStartListening()
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -207,11 +247,11 @@ fun LiveHearingScreen(
                 }
             }
 
-            // --- 3. Status & Instructions ---
+            // --- 3. Status & Action Buttons ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp),
+                    .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 AnimatedContent(
@@ -229,12 +269,69 @@ fun LiveHearingScreen(
                                     textAlign = TextAlign.Center,
                                     fontSize = 14.sp
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Tap button to retry",
-                                    color = Color.Gray,
-                                    fontSize = 12.sp
-                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // Action Row (Connect & Retry)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 1. Connect Button
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                            context.startActivity(intent)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = WeHearDarkGrey,
+                                            contentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(50),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 20.dp,
+                                            vertical = 12.dp
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Bluetooth,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = WeHearBlue
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Connect",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    // 2. Retry Button
+                                    Button(
+                                        onClick = { onStartListening() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = WeHearBlue,
+                                            contentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(50),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 24.dp,
+                                            vertical = 12.dp
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Retry",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                             // CASE: LISTENING
                             state == "Active" -> {
@@ -269,8 +366,11 @@ fun LiveHearingScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             // --- 4. Balance Control Card ---
-            // Only show this when NOT in error state, for cleaner look
-            if (uiError == null) {
+            AnimatedVisibility(
+                visible = uiError == null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -330,8 +430,10 @@ fun LiveHearingScreen(
                         )
                     }
                 }
-            } else {
-                Spacer(modifier = Modifier.height(100.dp)) // Maintain layout height if error is shown
+            }
+
+            if (uiError != null) {
+                Spacer(modifier = Modifier.height(100.dp))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -339,7 +441,6 @@ fun LiveHearingScreen(
     }
 }
 
-// ... (WeHearRipple function remains exactly the same as before) ...
 @Composable
 fun WeHearRipple(amplitude: Int, delay: Int) {
     val infiniteTransition = rememberInfiniteTransition(label = "ripple")
