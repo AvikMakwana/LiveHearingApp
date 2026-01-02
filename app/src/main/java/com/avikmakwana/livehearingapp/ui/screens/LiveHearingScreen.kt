@@ -169,12 +169,6 @@ fun LiveHearingScreen(
                             letterSpacing = 1.sp
                         )
                     }
-                    Text(
-                        text = "Developed by Avik Makwana",
-                        color = WeHearBlue.copy(alpha = 0.5f),
-                        fontSize = 9.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
                 }
             }
         }
@@ -336,7 +330,7 @@ fun LiveHearingScreen(
                             // CASE: LISTENING
                             state == "Active" -> {
                                 Text(
-                                    text = "LIVE HEARING ACTIVE",
+                                    text = "Hearing Mode ACTIVE",
                                     color = WeHearBlue,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 2.sp
