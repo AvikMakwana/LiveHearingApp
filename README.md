@@ -8,6 +8,14 @@ Designed for accessibility, clarity, and comfort — WeHear helps you stay conne
 
 ---
 
+## ⬇️ Download Latest APK
+
+👉 **[Download Latest Release](https://github.com/AvikMakwana/LiveHearingApp/releases/latest)**  
+
+Always download the most recent APK from the official GitHub Releases page to ensure you get the latest features and fixes.
+
+---
+
 ## ✨ Key Features
 
 ### 🎧 Live Hearing Mode  
